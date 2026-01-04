@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { StyleChips } from "./StyleChips";
 import { SettingsPopover } from "./SettingsPopover";
@@ -7,6 +7,7 @@ import { generateMultipleImages, ASPECT_RATIOS } from "@/lib/pollinations";
 import { Sparkles, Loader2, Copy, RefreshCw, HelpCircle, MoreVertical } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { useDominantColor } from "@/hooks/use-dominant-color";
 
 export function ImageGenerator() {
   const [prompt, setPrompt] = useState("");
@@ -14,8 +15,25 @@ export function ImageGenerator() {
   const [selectedRatio, setSelectedRatio] = useState("16:9");
   const [seed, setSeed] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("none");
+  const [imageCount, setImageCount] = useState(4);
+  const [enhance, setEnhance] = useState(true);
+  const [negativePrompt, setNegativePrompt] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
+  const currentImage = images.length > 0 ? images[selectedImageIndex] : null;
+  const { hslColor } = useDominantColor(currentImage);
+
+  // Apply dynamic primary color based on the selected image
+  useEffect(() => {
+    if (hslColor) {
+      const root = document.documentElement;
+      root.style.setProperty("--primary", `${hslColor.h} ${Math.max(hslColor.s, 60)}% ${Math.min(Math.max(hslColor.l, 40), 55)}%`);
+      root.style.setProperty("--accent", `${hslColor.h} ${Math.max(hslColor.s - 10, 50)}% ${Math.min(Math.max(hslColor.l + 5, 45), 60)}%`);
+      root.style.setProperty("--ring", `${hslColor.h} ${Math.max(hslColor.s, 60)}% ${Math.min(Math.max(hslColor.l, 40), 55)}%`);
+    }
+  }, [hslColor]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -25,11 +43,11 @@ export function ImageGenerator() {
 
     setIsLoading(true);
     setImages([]);
+    setSelectedImageIndex(0);
 
     try {
       const ratio = ASPECT_RATIOS.find((r) => r.name === selectedRatio) || ASPECT_RATIOS[1];
       
-      // Append style to prompt if selected
       const finalPrompt = selectedStyle !== "none" 
         ? `${prompt}, ${selectedStyle} style`
         : prompt;
@@ -41,15 +59,16 @@ export function ImageGenerator() {
           width: ratio.width,
           height: ratio.height,
           seed: seed ? parseInt(seed) : undefined,
-          enhance: true,
+          enhance: enhance,
+          negative_prompt: negativePrompt || undefined,
           nologo: true,
+          safe: false,
         },
-        4 // Always generate 4 variations like ImageFX
+        imageCount
       );
 
       setImages(generatedImages);
       
-      // Set random seed for display
       if (!seed) {
         setSeed(Math.floor(Math.random() * 1000000).toString());
       }
@@ -86,17 +105,7 @@ export function ImageGenerator() {
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-border/30">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-semibold text-foreground">ImageFX</span>
-            <span className="text-muted-foreground">•</span>
-          </div>
-          <Button
-            variant="default"
-            size="sm"
-            className="bg-primary hover:bg-primary/90 rounded-full px-4"
-          >
-            Teste o Whisk
-          </Button>
+          <span className="text-xl font-semibold text-foreground">Palazia</span>
         </div>
         
         <div className="flex items-center gap-2">
@@ -118,7 +127,7 @@ export function ImageGenerator() {
           {images.length > 0 && (
             <div className="absolute inset-0 overflow-hidden">
               <img
-                src={images[0]}
+                src={images[selectedImageIndex]}
                 alt="Background preview"
                 className="w-full h-full object-cover opacity-30 blur-sm"
               />
@@ -191,6 +200,12 @@ export function ImageGenerator() {
                 setSelectedModel={setSelectedModel}
                 selectedRatio={selectedRatio}
                 setSelectedRatio={setSelectedRatio}
+                imageCount={imageCount}
+                setImageCount={setImageCount}
+                enhance={enhance}
+                setEnhance={setEnhance}
+                negativePrompt={negativePrompt}
+                setNegativePrompt={setNegativePrompt}
               />
             </div>
           </div>
@@ -201,7 +216,9 @@ export function ImageGenerator() {
           <ImageViewer
             images={images}
             isLoading={isLoading}
-            loadingCount={4}
+            loadingCount={imageCount}
+            selectedIndex={selectedImageIndex}
+            onSelectIndex={setSelectedImageIndex}
           />
         </div>
       </main>

@@ -1,27 +1,25 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { PromptInput } from "./PromptInput";
-import { ModelSelector } from "./ModelSelector";
-import { AspectRatioSelector } from "./AspectRatioSelector";
-import { AdvancedSettings } from "./AdvancedSettings";
-import { ImageGallery } from "./ImageGallery";
+import { StyleChips } from "./StyleChips";
+import { SettingsPopover } from "./SettingsPopover";
+import { ImageViewer } from "./ImageViewer";
 import { generateMultipleImages, ASPECT_RATIOS } from "@/lib/pollinations";
-import { Sparkles, Zap, ImageIcon } from "lucide-react";
+import { Sparkles, Loader2, Copy, RefreshCw, HelpCircle, MoreVertical } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
 export function ImageGenerator() {
   const [prompt, setPrompt] = useState("");
   const [selectedModel, setSelectedModel] = useState("flux");
-  const [selectedRatio, setSelectedRatio] = useState("1:1");
-  const [imageCount, setImageCount] = useState(1);
+  const [selectedRatio, setSelectedRatio] = useState("16:9");
   const [seed, setSeed] = useState("");
-  const [enhance, setEnhance] = useState(false);
-  const [negativePrompt, setNegativePrompt] = useState("");
+  const [selectedStyle, setSelectedStyle] = useState("none");
   const [images, setImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
-      toast.error("Please enter a prompt");
+      toast.error("Digite um prompt primeiro");
       return;
     }
 
@@ -29,129 +27,191 @@ export function ImageGenerator() {
     setImages([]);
 
     try {
-      const ratio = ASPECT_RATIOS.find((r) => r.name === selectedRatio) || ASPECT_RATIOS[0];
+      const ratio = ASPECT_RATIOS.find((r) => r.name === selectedRatio) || ASPECT_RATIOS[1];
+      
+      // Append style to prompt if selected
+      const finalPrompt = selectedStyle !== "none" 
+        ? `${prompt}, ${selectedStyle} style`
+        : prompt;
       
       const generatedImages = await generateMultipleImages(
         {
-          prompt,
+          prompt: finalPrompt,
           model: selectedModel,
           width: ratio.width,
           height: ratio.height,
           seed: seed ? parseInt(seed) : undefined,
-          enhance,
-          negative_prompt: negativePrompt || undefined,
+          enhance: true,
           nologo: true,
         },
-        imageCount
+        4 // Always generate 4 variations like ImageFX
       );
 
       setImages(generatedImages);
-      toast.success(`Generated ${generatedImages.length} image${generatedImages.length > 1 ? 's' : ''} successfully!`);
+      
+      // Set random seed for display
+      if (!seed) {
+        setSeed(Math.floor(Math.random() * 1000000).toString());
+      }
+      
+      toast.success("Imagens geradas com sucesso!");
     } catch (error) {
       console.error("Generation error:", error);
-      toast.error("Failed to generate images. Please try again.");
+      toast.error("Falha ao gerar imagens. Tente novamente.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (prompt.trim() && !isLoading) {
+        handleGenerate();
+      }
+    }
+  };
+
+  const copyPrompt = () => {
+    navigator.clipboard.writeText(prompt);
+    toast.success("Prompt copiado!");
+  };
+
+  const clearPrompt = () => {
+    setPrompt("");
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center glow">
-              <Sparkles className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold gradient-text">AI Image Generator</h1>
-              <p className="text-xs text-muted-foreground">Powered by Pollinations AI</p>
-            </div>
+      <header className="flex items-center justify-between px-4 py-3 border-b border-border/30">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-semibold text-foreground">ImageFX</span>
+            <span className="text-muted-foreground">•</span>
           </div>
+          <Button
+            variant="default"
+            size="sm"
+            className="bg-primary hover:bg-primary/90 rounded-full px-4"
+          >
+            Teste o Whisk
+          </Button>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <HelpCircle className="w-5 h-5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="rounded-full">
+            <MoreVertical className="w-5 h-5" />
+          </Button>
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent" />
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-[400px_1fr] gap-8">
-          {/* Settings Panel */}
-          <aside className="space-y-6">
-            <div className="glass rounded-xl p-6 space-y-6">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Zap className="w-4 h-4 text-primary" />
-                <span>Configure your generation</span>
-              </div>
-              
-              <PromptInput
-                prompt={prompt}
-                setPrompt={setPrompt}
-                onGenerate={handleGenerate}
-                isLoading={isLoading}
+      <main className="flex-1 flex">
+        {/* Left Panel - Prompt & Settings */}
+        <div className="w-[480px] flex flex-col relative">
+          {/* Background image preview */}
+          {images.length > 0 && (
+            <div className="absolute inset-0 overflow-hidden">
+              <img
+                src={images[0]}
+                alt="Background preview"
+                className="w-full h-full object-cover opacity-30 blur-sm"
               />
-
-              <div className="border-t border-border/50 pt-6">
-                <ModelSelector
-                  selectedModel={selectedModel}
-                  setSelectedModel={setSelectedModel}
-                />
-              </div>
-
-              <div className="border-t border-border/50 pt-6">
-                <AspectRatioSelector
-                  selectedRatio={selectedRatio}
-                  setSelectedRatio={setSelectedRatio}
-                />
-              </div>
-
-              <div className="border-t border-border/50 pt-6">
-                <AdvancedSettings
-                  imageCount={imageCount}
-                  setImageCount={setImageCount}
-                  seed={seed}
-                  setSeed={setSeed}
-                  enhance={enhance}
-                  setEnhance={setEnhance}
-                  negativePrompt={negativePrompt}
-                  setNegativePrompt={setNegativePrompt}
-                />
-              </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-background via-background/95 to-background/80" />
             </div>
+          )}
+          
+          <div className="relative z-10 flex flex-col h-full p-4">
+            {/* Prompt Card */}
+            <div className="bg-card/90 backdrop-blur-sm rounded-2xl border border-border/50 overflow-hidden flex-shrink-0">
+              <div className="p-4">
+                <Textarea
+                  placeholder="Descreva a imagem que você quer criar..."
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="min-h-[120px] resize-none bg-transparent border-none focus-visible:ring-0 text-lg placeholder:text-muted-foreground/70 p-0"
+                />
+              </div>
 
-            {/* Stats Card */}
-            <div className="glass rounded-xl p-4">
-              <div className="flex items-center justify-between">
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between px-4 pb-4">
                 <div className="flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-primary" />
-                  <span className="text-sm text-muted-foreground">Images generated</span>
+                  <button
+                    onClick={copyPrompt}
+                    className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+                    title="Copiar prompt"
+                  >
+                    <Copy className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                  <button
+                    onClick={clearPrompt}
+                    className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+                    title="Limpar prompt"
+                  >
+                    <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                  </button>
                 </div>
-                <span className="font-mono text-lg font-bold text-foreground">{images.length}</span>
-              </div>
-            </div>
-          </aside>
 
-          {/* Gallery */}
-          <section className="glass rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <ImageIcon className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold text-foreground">Generated Images</h2>
+                <Button
+                  onClick={handleGenerate}
+                  disabled={!prompt.trim() || isLoading}
+                  className="bg-primary hover:bg-primary/90 rounded-full px-6"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Criar
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Style Chips */}
+              <div className="px-4 pb-4">
+                <StyleChips
+                  selectedStyle={selectedStyle}
+                  setSelectedStyle={setSelectedStyle}
+                  onSuggest={() => {}}
+                />
+              </div>
+
+              {/* Settings Panel */}
+              <SettingsPopover
+                seed={seed}
+                setSeed={setSeed}
+                selectedModel={selectedModel}
+                setSelectedModel={setSelectedModel}
+                selectedRatio={selectedRatio}
+                setSelectedRatio={setSelectedRatio}
+              />
             </div>
-            
-            <ImageGallery 
-              images={images} 
-              isLoading={isLoading} 
-              loadingCount={imageCount}
-            />
-          </section>
+          </div>
+        </div>
+
+        {/* Right Panel - Image Viewer */}
+        <div className="flex-1 p-4">
+          <ImageViewer
+            images={images}
+            isLoading={isLoading}
+            loadingCount={4}
+          />
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 mt-auto">
-        <div className="container mx-auto px-4 py-6">
-          <p className="text-center text-sm text-muted-foreground">
-            Created with Pollinations AI • Free, open-source AI image generation
-          </p>
+      <footer className="flex items-center justify-between px-4 py-3 border-t border-border/30 text-xs text-muted-foreground">
+        <p>Exoneração de responsabilidade: as ferramentas IA podem cometer erros. Por isso, cheque os resultados</p>
+        <div className="flex items-center gap-4">
+          <a href="#" className="hover:text-foreground transition-colors">Privacidade</a>
+          <a href="#" className="hover:text-foreground transition-colors">Termos de Serviço</a>
         </div>
       </footer>
     </div>

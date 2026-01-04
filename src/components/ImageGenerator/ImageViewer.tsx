@@ -1,15 +1,16 @@
-import { useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Grid, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 interface ImageViewerProps {
   images: string[];
   isLoading: boolean;
   loadingCount: number;
+  selectedIndex: number;
+  onSelectIndex: (index: number) => void;
 }
 
-export function ImageViewer({ images, isLoading, loadingCount }: ImageViewerProps) {
-  const [selectedIndex, setSelectedIndex] = useState(0);
+export function ImageViewer({ images, isLoading, loadingCount, selectedIndex, onSelectIndex }: ImageViewerProps) {
   const [viewMode, setViewMode] = useState<"single" | "grid">("single");
 
   const handleDownload = async (imageUrl: string, index: number) => {
@@ -19,7 +20,7 @@ export function ImageViewer({ images, isLoading, loadingCount }: ImageViewerProp
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `generated-image-${index + 1}.png`;
+      a.download = `palazia-image-${index + 1}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -30,11 +31,11 @@ export function ImageViewer({ images, isLoading, loadingCount }: ImageViewerProp
   };
 
   const goToPrevious = () => {
-    setSelectedIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+    onSelectIndex(selectedIndex > 0 ? selectedIndex - 1 : images.length - 1);
   };
 
   const goToNext = () => {
-    setSelectedIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+    onSelectIndex(selectedIndex < images.length - 1 ? selectedIndex + 1 : 0);
   };
 
   // Empty State
@@ -146,7 +147,7 @@ export function ImageViewer({ images, isLoading, loadingCount }: ImageViewerProp
             <div
               key={index}
               onClick={() => {
-                setSelectedIndex(index);
+                onSelectIndex(index);
                 setViewMode("single");
               }}
               className={`relative cursor-pointer rounded-xl overflow-hidden border-2 transition-all ${
@@ -169,7 +170,7 @@ export function ImageViewer({ images, isLoading, loadingCount }: ImageViewerProp
           {images.map((image, index) => (
             <button
               key={index}
-              onClick={() => setSelectedIndex(index)}
+              onClick={() => onSelectIndex(index)}
               className={`w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
                 index === selectedIndex
                   ? "border-primary ring-2 ring-primary/30"

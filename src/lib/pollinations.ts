@@ -15,6 +15,7 @@ export interface GenerateImageParams {
   enhance?: boolean;
   negative_prompt?: string;
   nologo?: boolean;
+  safe?: boolean;
 }
 
 export const IMAGE_MODELS: ImageModel[] = [
@@ -45,6 +46,7 @@ export async function generateImage(params: GenerateImageParams): Promise<string
     enhance = false,
     negative_prompt,
     nologo = true,
+    safe = false,
   } = params;
 
   const encodedPrompt = encodeURIComponent(prompt);
@@ -55,6 +57,7 @@ export async function generateImage(params: GenerateImageParams): Promise<string
     height: height.toString(),
     nologo: nologo.toString(),
     enhance: enhance.toString(),
+    safe: safe.toString(),
   });
 
   if (seed !== undefined) {
